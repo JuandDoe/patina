@@ -3,6 +3,7 @@ use std::thread;
 use std::time::Duration;
 use std::env;
 
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 // --- Configuration du v0 (on la "durcira" plus tard via fichier/env) ---
@@ -11,6 +12,16 @@ const POLL_INTERVAL_SECS: u64 = 5;
 // 1 XMR = 1_000_000_000_000 unités atomiques ("piconero").
 // On manipule TOUJOURS des entiers atomiques pour l'argent (jamais de float en interne).
 const ATOMIC_UNITS_PER_XMR: u64 = 1_000_000_000_000;
+
+//Nombre de confirmation minimale pour considérer un paiement comme effectué
+const ULTIMATE_PART_CONFIRMATION:u64 = 2;
+
+// On peuple les variables directement avec Serde. parse not validate 
+    #[derive(Deserialize)]
+    struct CreatedAddress {
+         address: String,
+          address_index: u64,
+    }
 
 /// Un seul endroit qui sait parler à monero-wallet-rpc.
 /// On envoie {method, params} et on récupère le champ "result" (ou une erreur).
@@ -34,6 +45,7 @@ fn rpc_call(method: &str, params: Value) -> Result<Value, Box<dyn Error>> {
         .ok_or_else(|| format!("Réponse sans 'result' pour '{method}'").into())
 }
 
+
 fn main() -> Result<(), Box<dyn Error>> {
     // Collecter les arguments CLI passés au programme
     let args: Vec<String> = env::args().collect();
@@ -49,12 +61,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         "create_address",
         json!({ "account_index": account_index, "label": "order-001" }),
     )?;
-    let address = created["address"]
-        .as_str()
-        .ok_or("pas d'adresse dans la réponse")?;
-    let address_index = created["address_index"]
-        .as_u64()
-        .ok_or("pas d'index dans la réponse")?;
+
+    let ca: CreatedAddress = serde_json::from_value(created)?;
+
+    let address = ca.address;
+    let address_index = ca.address_index;
 
     println!("=== Nouvelle facture ===");
     println!("Envoie {expected_xmr} XMR à :");
@@ -85,15 +96,31 @@ fn main() -> Result<(), Box<dyn Error>> {
             })
             .unwrap_or(0);
 
+            let min_conf: Option<u64> = transfers
+                .get("in")
+                .and_then(Value::as_array)
+                .and_then(|arr| {
+            arr.iter()
+                .filter_map(|t| t.get("confirmations").and_then(Value::as_u64))
+                .min()
+                });
+
+
         if received == 0 {
             println!("... rien pour l'instant, je revérifie dans {POLL_INTERVAL_SECS}s");
         } else if received < expected_atomic {
             let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
             println!("Paiement partiel : {got} / {expected_xmr} XMR reçus");
-        } else {
-            let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
-            println!("PAYÉ : {got} XMR reçus. Facture réglée.");
-            break;
+        } else  {
+                // On arrive ici => le MONTANT est atteint. Reste à savoir si c'est assez confirmé.
+                let conf = min_conf.unwrap_or(0); // None = aucun transfert => on retient 0 (pas assez confirmé)
+                if conf >= ULTIMATE_PART_CONFIRMATION {
+                    let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
+                    println!("PAYÉ et confirmé ({conf} confirmations) : {got} XMR. Facture réglée.");
+                    break;
+                } else {
+                    println!("Montant reçu, en attente de confirmations ({conf}/{ULTIMATE_PART_CONFIRMATION})");
+                }
         }
 
         thread::sleep(Duration::from_secs(POLL_INTERVAL_SECS));
@@ -101,3 +128,4 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
