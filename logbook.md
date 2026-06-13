@@ -140,12 +140,27 @@ interrogeant le wallet-rpc, (4) affiche "PAYÉ" quand les fonds arrivent dessus.
 
 1. Je ne touche pas a account_index qui est déjà une constante claire , je modifie expected_xmr en const EXPECTED_XMR dans main()
 
-J""ai trouvé un tutoriel pour que mon programme accepte des arguments CLI, j'opte pour cette option pour apprendre, au lieux de me reposer sur un crate
+J""ai trouvé un tutoriel officiel pour que mon programme accepte des arguments CLI, j'opte pour cette option pour apprendre, au lieux de me reposer sur un crate
 ](https://doc.rust-lang.org/book/ch12-01-accepting-command-line-arguments.html)"
 
-Mon aproche de const était confuse, j'ai retiré les const sur les arguments CLI. Vu avec Claude. Comme les variables account_index et et xmr_expected sont définies désormais via des arguments CLI elles ne sont connu qqu'a l'execution du programme et non a la compilation. Il convient également de parser les arguments puisqu'ils sont récupérés initialement sous forme de String
+Mon aproche de const était confuse, j'ai retiré les const sur les arguments CLI. Vu avec Claude. Comme les variables account_index et et xmr_expected sont définies désormais via des arguments CLI elles ne sont connu qu'a l'execution du programme et non a la compilation. Il convient également de parser les arguments puisqu'ils sont récupérés initialement sous forme de String
 
 2.
+
+3
+Je vois effectivement que confirmaation n'est pas a la racine mais dans un array de transfert appellé "in"
+Il faut que la partie du paiement la plus tardive est un certain nombre de confirmation. J'appellerai la variable ultimate_part_confirmation
+[text](<https://www.getmonero.org/get-started/accepting/#:~:text=Wait%20until%20the%20payment%20has,can%20spend%20the%20funds.).>)
+getmonero.org parle de 10 confirmation minimum, je partirais sur ça. D'ailleurs je pense qu'on pourrait en faire une const. Pour des raisons de test je mettrais la valeur a 2
+
+- } else {
+            let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
+            println!("PAYÉ : {got} XMR reçus. Facture réglée.");
+
+            il faudrait checkeer ici mais je suppose qu'on va se retrouver avec un json contenant plusieurs tableau in si on regle  en pluisuers fois, je vois ce que tu essayais de me dire. Mais la tu vois je manque encore de l'intuition sur ou chercher /me debrouiller comme un grand avec la syntax.
+            Je vais probablement devoir attendre  le log             println!("PAYÉ : {got} XMR reçus. Facture réglée."); puis commencver a ce moment la a trouver le le dernier tableau in
+            Je vois bien un truc comme faire une boucle sur les tableau in jusqu'au dernier puis rentrer dnas le dernier et boucler jusqua ce que confirmation = 10. mais la c'est tout flou. je suis incapable d'écrire ça seul
+
 
 **Ce qui a coincé :** *(à remplir quand je code)*
 
