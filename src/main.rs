@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, vec};
 use std::thread;
 use std::time::Duration;
 use std::env;
@@ -22,6 +22,10 @@ const ULTIMATE_PART_CONFIRMATION:u64 = 2;
          address: String,
           address_index: u64,
     }
+
+    #[derive(Deserialize)]
+
+
 
 /// Un seul endroit qui sait parler à monero-wallet-rpc.
 /// On envoie {method, params} et on récupère le champ "result" (ou une erreur).
