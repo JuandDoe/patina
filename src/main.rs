@@ -14,7 +14,7 @@ const POLL_INTERVAL_SECS: u64 = 5;
 const ATOMIC_UNITS_PER_XMR: u64 = 1_000_000_000_000;
 
 //Nombre de confirmation minimale pour considérer un paiement comme effectué
-const ULTIMATE_PART_CONFIRMATION:u64 = 2;
+const ULTIMATE_PART_CONFIRMATION:u64 = 1;
 
 // On peuple les variables directement avec Serde. parse not validate 
     #[derive(Deserialize)]
@@ -24,8 +24,16 @@ const ULTIMATE_PART_CONFIRMATION:u64 = 2;
     }
 
     #[derive(Deserialize)]
+        struct Transfer {
+        amount: u64,
+        confirmations: u64,
+    }
 
-
+    #[derive(Deserialize)]
+        struct GetTransfers {
+            #[serde(rename = "in", default)]
+            incoming: Vec<Transfer>
+        }
 
 /// Un seul endroit qui sait parler à monero-wallet-rpc.
 /// On envoie {method, params} et on récupère le champ "result" (ou une erreur).
@@ -87,28 +95,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "subaddr_indices": [address_index],
             }),
         )?;
+                
+        let resp: GetTransfers = serde_json::from_value(transfers)?;
 
-        // "in" = tableau des transferts entrants (absent tant qu'il n'y a rien).
-        // On somme les montants (en atomique).
-        let received: u64 = transfers
-            .get("in")
-            .and_then(Value::as_array)
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|t| t.get("amount").and_then(Value::as_u64))
-                    .sum()
-            })
-            .unwrap_or(0);
-
-            let min_conf: Option<u64> = transfers
-                .get("in")
-                .and_then(Value::as_array)
-                .and_then(|arr| {
-            arr.iter()
-                .filter_map(|t| t.get("confirmations").and_then(Value::as_u64))
-                .min()
-                });
-
+        let received: u64 = resp.incoming.iter().map(|t| t.amount).sum();
+        let min_conf: Option<u64> = resp.incoming.iter().map(|t| t.confirmations).min();
 
         if received == 0 {
             println!("... rien pour l'instant, je revérifie dans {POLL_INTERVAL_SECS}s");
