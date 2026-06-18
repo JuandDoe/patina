@@ -156,3 +156,34 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn if_zero_received() {
+        assert_eq!(evaluate_payment(0, 100, None, 2), PaymentStatus::Nothing);
+    }
+
+    #[test]
+    fn if_less_than_expected() {
+        assert_eq!(evaluate_payment(50, 100, None, 2), PaymentStatus::Partial);
+    }
+
+    #[test]
+    fn if_enough_received_but_not_enough_confirmed() {
+        assert_eq!(evaluate_payment(100, 100, Some(1), 2), PaymentStatus::AwaitingConfirmations);
+    }
+
+    #[test]
+    fn if_enough_received_and_enough_confirmed() {
+        assert_eq!(evaluate_payment(100, 100, Some(2), 2), PaymentStatus::Confirmed);
+    }
+
+    #[test]
+    fn if_too_much_received_and_enough_confirmed() {
+        assert_eq!(evaluate_payment(150, 100, Some(2), 2), PaymentStatus::Confirmed);
+    }
+
+}
