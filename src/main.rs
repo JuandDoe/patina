@@ -5,8 +5,7 @@ use std::env;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
-use rusqlite::{params, Connection, Result};
-use rusqlite::ToSql;
+use rusqlite::{Connection, Result};
 mod db;
 
 // --- Configuration du v0 (on la "durcira" plus tard via fichier/env) ---
@@ -37,6 +36,32 @@ const ULTIMATE_PART_CONFIRMATION:u64 = 1;
             #[serde(rename = "in", default)]
             incoming: Vec<Transfer>
         }
+
+        #[derive(Debug, PartialEq)]
+enum PaymentStatus {
+    Nothing,
+    Partial,
+    AwaitingConfirmations,
+    Confirmed,
+}
+
+fn evaluate_payment(received: u64, expected: u64, min_conf: Option<u64>, required_conf: u64) -> PaymentStatus {
+    // exactement ta logique du if/else, mais chaque branche fait `return ...` / renvoie un PaymentStatus
+    // au lieu de println!
+    if received == 0 {
+        PaymentStatus::Nothing
+    } else if received < expected {
+        PaymentStatus::Partial
+    } else {
+        let conf = min_conf.unwrap_or(0);
+        if conf >= required_conf {
+            PaymentStatus::Confirmed
+        } else {
+            PaymentStatus::AwaitingConfirmations
+        }
+    }
+    
+}
 
 /// Un seul endroit qui sait parler à monero-wallet-rpc.
 /// On envoie {method, params} et on récupère le champ "result" (ou une erreur).
@@ -108,26 +133,26 @@ fn main() -> Result<(), Box<dyn Error>> {
         let received: u64 = resp.incoming.iter().map(|t| t.amount).sum();
         let min_conf: Option<u64> = resp.incoming.iter().map(|t| t.confirmations).min();
 
-        if received == 0 {
-            println!("... rien pour l'instant, je revérifie dans {POLL_INTERVAL_SECS}s");
-        } else if received < expected_atomic {
-            let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
-            println!("Paiement partiel : {got} / {expected_xmr} XMR reçus");
-        } else  {
-                // On arrive ici => le MONTANT est atteint. Reste à savoir si c'est assez confirmé.
-                let conf = min_conf.unwrap_or(0); // None = aucun transfert => on retient 0 (pas assez confirmé)
-                if conf >= ULTIMATE_PART_CONFIRMATION {
-                    let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
-                    println!("PAYÉ et confirmé ({conf} confirmations) : {got} XMR. Facture réglée.");
-                    break;
-                } else {
-                    println!("Montant reçu, en attente de confirmations ({conf}/{ULTIMATE_PART_CONFIRMATION})");
-                }
+        match evaluate_payment(received, expected_atomic, min_conf, ULTIMATE_PART_CONFIRMATION) {
+            PaymentStatus::Nothing => {
+                println!("... rien pour l'instant, je revérifie dans {POLL_INTERVAL_SECS}s");
+            }
+            PaymentStatus::Partial => {
+                let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
+                println!("Paiement partiel : {got} / {expected_xmr} XMR reçus");
+            }
+            PaymentStatus::AwaitingConfirmations => {
+                let conf = min_conf.unwrap_or(0);
+                println!("Montant reçu, en attente de confirmations ({conf}/{ULTIMATE_PART_CONFIRMATION})");
+            }
+            PaymentStatus::Confirmed => {
+                let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
+                println!("PAYÉ et confirmé : {got} XMR. Facture réglée.");
+                break;
+            }
         }
-
         thread::sleep(Duration::from_secs(POLL_INTERVAL_SECS));
     }
 
     Ok(())
 }
-
