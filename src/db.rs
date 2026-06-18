@@ -22,3 +22,11 @@ pub fn save_invoice(conn: &Connection, address: &str, address_index: u64, expect
 )?;
     Ok(())
 }
+
+pub fn invoice_paid(conn: &Connection, address: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE invoices SET status = 'paid' WHERE address = ?1",
+        (address,),
+    )?;
+    Ok(())
+}

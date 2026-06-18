@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let conn = Connection::open("sql/patina.db")?;
     db::create_invoices_table(&conn)?;
     db::save_invoice(&conn, "7BG5jr9QS5sGMdpbBrZEwVLZjSKJGJBsXdZLt8wiXyhhLjy7x2LZxsrAnHTgD8oG46ZtLjUGic2pWc96GFkGNPQQDA3Dt7Q", 0, 100_000_000_000, "pending")?;
-
+    db::invoice_paid(&conn, "7BG5jr9QS5sGMdpbBrZEwVLZjSKJGJBsXdZLt8wiXyhhLjy7x2LZxsrAnHTgD8oG46ZtLjUGic2pWc96GFkGNPQQDA3Dt7Q")?;
     // 1) On génère une sous-adresse fraîche = la clé comptable de cette facture.
     let created = rpc_call(
         "create_address",
