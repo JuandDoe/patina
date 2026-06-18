@@ -1,10 +1,12 @@
-use std::{error::Error, vec};
+use std::{error::Error};
 use std::thread;
 use std::time::Duration;
 use std::env;
 
 use serde::Deserialize;
 use serde_json::{json, Value};
+use rusqlite::{params, Connection, Result};
+use rusqlite::ToSql;
 
 // --- Configuration du v0 (on la "durcira" plus tard via fichier/env) ---
 const RPC_URL: &str = "http://127.0.0.1:38083/json_rpc";
@@ -35,6 +37,29 @@ const ULTIMATE_PART_CONFIRMATION:u64 = 1;
             incoming: Vec<Transfer>
         }
 
+    fn create_invoices_table(conn: &Connection) -> Result<()> {
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS invoices (
+            id    INTEGER PRIMARY KEY,
+            address  TEXT,
+            address_index INTEGER,
+            expected_atomic INTEGER,
+            status TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)",
+            (),
+    )?;
+    Ok(()) //retour de la fonction
+}
+
+
+fn save_invoice(conn: &Connection, address: &str, address_index: u64, expected_atomic: u64, status: &str) -> Result<()> {
+   conn.execute(
+    "INSERT INTO invoices (address, address_index, expected_atomic, status) VALUES (?1, ?2, ?3, ?4)",
+    (address, address_index as i64, expected_atomic as i64, status),
+)?;
+    Ok(())
+}
 /// Un seul endroit qui sait parler à monero-wallet-rpc.
 /// On envoie {method, params} et on récupère le champ "result" (ou une erreur).
 fn rpc_call(method: &str, params: Value) -> Result<Value, Box<dyn Error>> {
@@ -67,6 +92,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let expected_xmr:f64 =  args[2].parse()?;
 
     let expected_atomic: u64 = (expected_xmr * ATOMIC_UNITS_PER_XMR as f64) as u64;
+
+    let conn = Connection::open("sql/patina.db")?;
+    create_invoices_table(&conn)?;
+    save_invoice(&conn, "7BG5jr9QS5sGMdpbBrZEwVLZjSKJGJBsXdZLt8wiXyhhLjy7x2LZxsrAnHTgD8oG46ZtLjUGic2pWc96GFkGNPQQDA3Dt7Q", 0, 100_000_000_000, "pending")?;
 
     // 1) On génère une sous-adresse fraîche = la clé comptable de cette facture.
     let created = rpc_call(
