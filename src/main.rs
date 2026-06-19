@@ -96,10 +96,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let expected_atomic: u64 = (expected_xmr * ATOMIC_UNITS_PER_XMR as f64) as u64;
 
-    let conn = Connection::open("sql/patina.db")?;
+    let conn = Connection::open("patina.db")?;
     db::create_invoices_table(&conn)?;
-    db::save_invoice(&conn, "7BG5jr9QS5sGMdpbBrZEwVLZjSKJGJBsXdZLt8wiXyhhLjy7x2LZxsrAnHTgD8oG46ZtLjUGic2pWc96GFkGNPQQDA3Dt7Q", 0, 100_000_000_000, "pending")?;
-    db::invoice_paid(&conn, "7BG5jr9QS5sGMdpbBrZEwVLZjSKJGJBsXdZLt8wiXyhhLjy7x2LZxsrAnHTgD8oG46ZtLjUGic2pWc96GFkGNPQQDA3Dt7Q")?;
+    
     // 1) On génère une sous-adresse fraîche = la clé comptable de cette facture.
     let created = rpc_call(
         "create_address",
@@ -110,6 +109,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let address = ca.address;
     let address_index = ca.address_index;
+
+    db::save_invoice(&conn, &address, address_index, expected_atomic, "pending")?;
 
     println!("=== Nouvelle facture ===");
     println!("Envoie {expected_xmr} XMR à :");
@@ -147,6 +148,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             PaymentStatus::Confirmed => {
                 let got = received as f64 / ATOMIC_UNITS_PER_XMR as f64;
+                db::invoice_paid(&conn, &address)?;
                 println!("PAYÉ et confirmé : {got} XMR. Facture réglée.");
                 break;
             }
