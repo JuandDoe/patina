@@ -64,15 +64,27 @@ fn evaluate_payment(received: u64, expected: u64, min_conf: Option<u64>, require
 
 /// Un seul endroit qui sait parler à monero-wallet-rpc.
 /// On envoie {method, params} et on récupère le champ "result" (ou une erreur).
-fn rpc_call(method: &str, params: Value) -> Result<Value, Box<dyn Error>> {
+/// 
+/// 
+/// 
+/// let client = reqwest::Client::new();
+   
+async fn rpc_call(method: &str, params: Value) -> Result<Value, Box<dyn Error>> {
     let body = json!({
         "jsonrpc": "2.0",
         "id": "0",
         "method": method,
         "params": params,
     });
+    let client = reqwest::Client::new();
+      let response: Value = client
+         .post(RPC_URL)
+         .json(&body)          // sérialise body en JSON (équivaut à send_json)
+         .send()               // envoie — c'est de l'attente réseau
+         .await?               // ... donc .await ici
+         .json()               // décode la réponse en JSON
+         .await?;              // ... encore de l'attente, donc .await
 
-    let response: Value = ureq::post(RPC_URL).send_json(body)?.into_json()?;
 
     // Le wallet-rpc répond toujours en HTTP 200 : le succès OU l'erreur est DANS le JSON.
     if let Some(err) = response.get("error") {
@@ -102,7 +114,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let created = rpc_call(
         "create_address",
         json!({ "account_index": account_index, "label": "order-001" }),
-    )?;
+    ).await?;
 
     let ca: CreatedAddress = serde_json::from_value(created)?;
 
@@ -126,7 +138,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 "account_index": account_index,
                 "subaddr_indices": [address_index],
             }),
-        )?;
+        ).await?;
                 
         let resp: GetTransfers = serde_json::from_value(transfers)?;
 
