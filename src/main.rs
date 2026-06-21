@@ -1,5 +1,4 @@
 use std::{error::Error};
-use std::thread;
 use std::time::Duration;
 use std::env;
 
@@ -85,8 +84,8 @@ fn rpc_call(method: &str, params: Value) -> Result<Value, Box<dyn Error>> {
         .ok_or_else(|| format!("Réponse sans 'result' pour '{method}'").into())
 }
 
-
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     // Collecter les arguments CLI passés au programme
     let args: Vec<String> = env::args().collect();
     let account_index: u64  = args[1].parse()?;
@@ -153,7 +152,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 break;
             }
         }
-        thread::sleep(Duration::from_secs(POLL_INTERVAL_SECS));
+        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
     }
 
     Ok(())
